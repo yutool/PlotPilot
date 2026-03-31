@@ -1,5 +1,6 @@
 import type { App } from 'vue'
 import ECharts from 'vue-echarts'
+import { use } from 'echarts/core'
 import {
   BarChart,
   LineChart,
@@ -40,8 +41,8 @@ import {
 import { CanvasRenderer } from 'echarts/renderers'
 import * as echarts from 'echarts'
 
-// Register components
-ECharts.registerComponent(
+// Register components, charts, and renderer
+use([
   TitleComponent,
   TooltipComponent,
   GridComponent,
@@ -56,11 +57,7 @@ ECharts.registerComponent(
   VisualMapComponent,
   LegendComponent,
   LegendScrollComponent,
-  LegendPlainComponent
-)
-
-// Register charts
-ECharts.registerChart(
+  LegendPlainComponent,
   BarChart,
   LineChart,
   PieChart,
@@ -78,11 +75,9 @@ ECharts.registerChart(
   ParallelChart,
   CandlestickChart,
   BoxplotChart,
-  ThemeRiverChart
-)
-
-// Register renderer
-ECharts.registerRenderer(CanvasRenderer)
+  ThemeRiverChart,
+  CanvasRenderer
+])
 
 export default function installECharts(app: App) {
   app.component('VChart', ECharts)
