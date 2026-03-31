@@ -13,9 +13,9 @@ export default defineConfig({
   server: {
     port: 3000,
     proxy: {
-      // 须与 `python -m aitext serve` 及 run_server.py 默认后端端口一致（8005）
+      // 代理到新架构的后端服务器（8000 端口）
       '/api': {
-        target: 'http://127.0.0.1:8005',
+        target: 'http://127.0.0.1:8000',
         changeOrigin: true,
         ws: true,
         // SSE 长连接，避免代理过早断开
