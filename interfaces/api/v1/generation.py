@@ -509,12 +509,45 @@ async def plan_novel(
             )
 
         # 使用 workflow 的 suggest_outline 为每章生成大纲
-        # 这里简化实现：为前 5 章生成大纲
+        # 为前 5 章生成大纲并创建章节
+        novel = novel_service.get_novel(novel_id)
+        if not novel:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Novel {novel_id} not found"
+            )
+
         chapters_planned = 0
         for chapter_num in range(1, 6):
             try:
                 outline = await workflow.suggest_outline(novel_id, chapter_num)
-                # TODO: 保存大纲到数据库
+
+                # 创建章节实体并保存到仓储
+                from domain.novel.entities.chapter import Chapter
+                from domain.novel.value_objects.chapter_id import ChapterId
+
+                chapter_id = f"{novel_id}-chapter-{chapter_num}"
+                chapter = Chapter(
+                    id=chapter_id,
+                    novel_id=NovelId(novel_id),
+                    number=chapter_num,
+                    title=f"第{chapter_num}章",
+                    content=""  # 大纲暂时不保存到 content，等生成时再填充
+                )
+
+                # 保存到章节仓储
+                chapter_service.chapter_repository.save(chapter)
+
+                # 同时更新小说的章节列表
+                novel_service.add_chapter(
+                    novel_id=novel_id,
+                    chapter_id=chapter_id,
+                    number=chapter_num,
+                    title=f"第{chapter_num}章",
+                    content=""
+                )
+
+                logger.info(f"Created chapter {chapter_num} with outline: {outline[:100]}...")
                 chapters_planned += 1
             except Exception as e:
                 logger.warning(f"Failed to generate outline for chapter {chapter_num}: {e}")
