@@ -1,6 +1,7 @@
 """Bible API 路由"""
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from pydantic import BaseModel, Field
+from typing import Optional
 import logging
 
 from application.services.bible_service import BibleService
@@ -48,6 +49,7 @@ class AddLocationRequest(BaseModel):
     name: str = Field(..., description="地点名称")
     description: str = Field(..., description="地点描述")
     location_type: str = Field(..., description="地点类型")
+    parent_id: Optional[str] = Field(default=None, description="父地点 id，根为 null")
 
 
 class AddTimelineNoteRequest(BaseModel):
@@ -87,6 +89,7 @@ class LocationData(BaseModel):
     name: str = Field(..., description="地点名称")
     description: str = Field(..., description="地点描述")
     location_type: str = Field(..., description="地点类型")
+    parent_id: Optional[str] = Field(default=None, description="父地点 id，根为 null")
 
 
 class TimelineNoteData(BaseModel):
@@ -386,7 +389,8 @@ async def add_location(
             location_id=request.location_id,
             name=request.name,
             description=request.description,
-            location_type=request.location_type
+            location_type=request.location_type,
+            parent_id=request.parent_id,
         )
     except EntityNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))

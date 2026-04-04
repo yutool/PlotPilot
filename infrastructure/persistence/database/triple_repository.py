@@ -93,6 +93,10 @@ def _triple_to_fact_dict(triple: Triple) -> dict:
     }
 
 
+BIBLE_LOCATION_ATTR_KEY = "bible_location_id"
+CONTAINMENT_PREDICATE = "位于"
+
+
 class TripleRepository:
     """三元组仓储（与 Knowledge 层共用 triples 表形状）"""
 
@@ -100,6 +104,44 @@ class TripleRepository:
         self.db_path = db_path
         self._db = DatabaseConnection(db_path)
         self._kr = SqliteKnowledgeRepository(self._db)
+
+    def persist_triple_sync(self, novel_id: str, triple: Triple) -> None:
+        """同步写入三元组（供 Bible 地点同步等非 async 调用链使用）。"""
+        self._kr.save_triple(novel_id, _triple_to_fact_dict(triple))
+
+    def delete_triple_sync(self, triple_id: str) -> bool:
+        cur = self._db.execute("DELETE FROM triples WHERE id = ?", (triple_id,))
+        self._db.get_connection().commit()
+        return cur.rowcount > 0
+
+    def get_containment_meta_by_bible_location_id(
+        self, novel_id: str, bible_location_id: str
+    ) -> Optional[dict]:
+        row = self._db.fetch_one(
+            """
+            SELECT t.id, t.source_type
+            FROM triples t
+            INNER JOIN triple_attr a ON a.triple_id = t.id AND a.attr_key = ?
+            WHERE t.novel_id = ? AND t.predicate = ? AND a.attr_value = ?
+            LIMIT 1
+            """,
+            (BIBLE_LOCATION_ATTR_KEY, novel_id, CONTAINMENT_PREDICATE, bible_location_id),
+        )
+        return dict(row) if row else None
+
+    def list_bible_generated_containment_with_location_ids(
+        self, novel_id: str,
+    ) -> List[dict]:
+        rows = self._db.fetch_all(
+            """
+            SELECT DISTINCT t.id, a.attr_value AS bible_location_id
+            FROM triples t
+            INNER JOIN triple_attr a ON a.triple_id = t.id AND a.attr_key = ?
+            WHERE t.novel_id = ? AND t.predicate = ? AND t.source_type = 'bible_generated'
+            """,
+            (BIBLE_LOCATION_ATTR_KEY, novel_id, CONTAINMENT_PREDICATE),
+        )
+        return [dict(r) for r in rows]
 
     def _row_to_triple(
         self,

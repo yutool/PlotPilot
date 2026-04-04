@@ -205,7 +205,12 @@ def get_bible_service() -> BibleService:
     Returns:
         BibleService 实例
     """
-    return BibleService(get_bible_repository())
+    from application.paths import get_db_path
+    from application.services.bible_location_triple_sync import BibleLocationTripleSyncService
+    from infrastructure.persistence.database.triple_repository import TripleRepository
+
+    sync = BibleLocationTripleSyncService(TripleRepository(get_db_path()))
+    return BibleService(get_bible_repository(), location_triple_sync=sync)
 
 
 def get_cast_service() -> CastService:

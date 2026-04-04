@@ -1,6 +1,6 @@
 """Bible 数据传输对象"""
 from dataclasses import dataclass
-from typing import List, TYPE_CHECKING
+from typing import List, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from domain.bible.entities.bible import Bible
@@ -70,6 +70,7 @@ class LocationDTO:
     name: str
     description: str
     location_type: str
+    parent_id: Optional[str] = None
 
     @classmethod
     def from_domain(cls, location: 'Location') -> 'LocationDTO':
@@ -85,7 +86,8 @@ class LocationDTO:
             id=location.id,
             name=location.name,
             description=location.description,
-            location_type=location.location_type
+            location_type=location.location_type,
+            parent_id=location.parent_id,
         )
 
 

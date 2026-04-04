@@ -1,6 +1,6 @@
 """Location 实体"""
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, Optional
 
 
 @dataclass
@@ -11,6 +11,7 @@ class Location:
     description: str
     location_type: str  # "city", "building", "natural", "other"
     connections: List[str] = field(default_factory=list)  # 地点之间的关系
+    parent_id: Optional[str] = None  # 父地点 id；根节点为 None
 
     def __post_init__(self):
         """验证实体"""

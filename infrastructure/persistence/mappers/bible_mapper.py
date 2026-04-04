@@ -53,7 +53,8 @@ class BibleMapper:
                     "id": loc.id,
                     "name": loc.name,
                     "description": loc.description,
-                    "location_type": loc.location_type
+                    "location_type": loc.location_type,
+                    **({"parent_id": loc.parent_id} if loc.parent_id else {}),
                 }
                 for loc in bible.locations
             ],
@@ -136,11 +137,14 @@ class BibleMapper:
 
             # 添加地点
             for loc_data in data.get("locations", []):
+                pid = loc_data.get("parent_id")
+                parent_id = pid.strip() if isinstance(pid, str) and pid.strip() else None
                 location = Location(
                     id=loc_data["id"],
                     name=loc_data["name"],
                     description=loc_data.get("description", ""),
-                    location_type=loc_data.get("location_type", "other")
+                    location_type=loc_data.get("location_type", "other"),
+                    parent_id=parent_id,
                 )
                 bible.add_location(location)
 

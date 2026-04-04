@@ -172,7 +172,18 @@ class AutoBibleGenerator:
             # 保存地点
             location_ids = []
             for idx, loc_data in enumerate(bible_data.get("locations", [])):
-                location_id = f"{novel_id}-loc-{idx+1}"
+                raw_id = loc_data.get("id")
+                location_id = (
+                    str(raw_id).strip()
+                    if isinstance(raw_id, str) and str(raw_id).strip()
+                    else f"{novel_id}-loc-{idx+1}"
+                )
+                p_raw = loc_data.get("parent_id")
+                parent_id = (
+                    str(p_raw).strip()
+                    if isinstance(p_raw, str) and str(p_raw).strip()
+                    else None
+                )
                 try:
                     self.bible_service.add_location(
                         novel_id=novel_id,
@@ -180,7 +191,8 @@ class AutoBibleGenerator:
                         name=loc_data["name"],
                         description=loc_data["description"],
                         location_type=loc_data.get("type", "场景"),
-                        connections=loc_data.get("connections", [])
+                        connections=loc_data.get("connections", []),
+                        parent_id=parent_id,
                     )
                     location_ids.append((location_id, loc_data))
                     logger.info(f"Location saved: {location_id}")
@@ -212,7 +224,7 @@ class AutoBibleGenerator:
 1. 深入理解故事梗概，提取核心冲突、主题、世界观
 2. 至少 3-5 个主要人物（主角、配角、对手、导师等），确保人物之间有冲突和互动
 3. 每个人物：姓名、定位（主角/配角/对手/导师）、性格特点、目标动机
-4. 至少 2-3 个重要地点，符合故事背景
+4. 至少 2-3 个重要地点，符合故事背景；地点须含稳定 `id`，若有层级则填 `parent_id` 指向父地点的 `id`（根为 null）
 5. 明确的文风公约（叙事视角、人称、基调、节奏）
 6. 完整的世界观（5维度框架）：核心法则、地理生态、社会结构、历史文化、沉浸感细节
 7. 人物和地点要符合故事类型（现代都市/古代/玄幻/科幻等）
@@ -229,9 +241,11 @@ JSON 格式（不要有其他文字）：
   ],
   "locations": [
     {
+      "id": "稳定id如 loc-continent-1",
       "name": "地点名",
       "type": "城市/建筑/区域",
-      "description": "地点描述，单行文本"
+      "description": "地点描述，单行文本",
+      "parent_id": null
     }
   ],
   "style": "第三人称有限视角，以XX视角为主。基调XX，节奏XX。避免XX。营造XX氛围。",
@@ -337,9 +351,11 @@ JSON 格式（不要有其他文字）：
                 ],
                 "locations": [
                     {
+                        "id": "loc-default-1",
                         "name": "主要场景",
                         "type": "城市",
-                        "description": "待补充"
+                        "description": "待补充",
+                        "parent_id": None,
                     }
                 ],
                 "style": "第三人称有限视角，轻松幽默"
@@ -381,14 +397,26 @@ JSON 格式（不要有其他文字）：
 
         # 添加地点
         for idx, loc_data in enumerate(bible_data.get("locations", [])):
-            location_id = f"{novel_id}-loc-{idx+1}"
+            raw_id = loc_data.get("id")
+            location_id = (
+                str(raw_id).strip()
+                if isinstance(raw_id, str) and str(raw_id).strip()
+                else f"{novel_id}-loc-{idx+1}"
+            )
+            p_raw = loc_data.get("parent_id")
+            parent_id = (
+                str(p_raw).strip()
+                if isinstance(p_raw, str) and str(p_raw).strip()
+                else None
+            )
             try:
                 self.bible_service.add_location(
                     novel_id=novel_id,
                     location_id=location_id,
                     name=loc_data["name"],
                     description=loc_data["description"],
-                    location_type=loc_data.get("type", "场景")
+                    location_type=loc_data.get("type", "场景"),
+                    parent_id=parent_id,
                 )
                 logger.info(f"Location saved: {location_id}")
             except Exception as e:
@@ -599,19 +627,21 @@ JSON 格式：
 2. 地点要符合世界观设定
 3. 考虑人物的活动范围和故事需要
 4. 包含不同类型：城市、建筑、区域、特殊场所等
-5. 明确地点之间的空间关系（相邻、包含、通往等）
+5. 空间层级用 `parent_id` 表达（子地点 id 指向父地点 id）；非父子关系用 `connections`（不要用 relation=位于）
 
 JSON 格式：
 {
   "locations": [
     {
+      "id": "稳定id，全书唯一",
       "name": "地点名",
       "type": "城市/建筑/区域/特殊场所",
       "description": "地点描述，单行文本",
+      "parent_id": null,
       "connections": [
         {
           "target": "目标地点名",
-          "relation": "连接类型（包含/相邻/通往/位于等）",
+          "relation": "连接类型（包含/相邻/通往等，勿用位于）",
           "description": "连接的详细描述"
         }
       ]
@@ -790,6 +820,10 @@ JSON 格式：
                     target_name = conn.get("target")
                     predicate = conn.get("relation", "连接")
                     description = conn.get("description", "")
+
+                pred_norm = (predicate or "").strip()
+                if pred_norm == "位于":
+                    continue
 
                 # 查找目标地点ID
                 target_loc_id = name_to_id.get(target_name)
