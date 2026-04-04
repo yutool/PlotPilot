@@ -208,26 +208,13 @@ class SqliteKnowledgeRepository:
         """供 TripleRepository 等与 triples 子表对齐的读取。"""
         return self._load_triple_children(novel_id)
 
-    def get_by_novel_id(self, novel_id: NovelId) -> Optional[StoryKnowledge]:
-        novel_id_str = novel_id.value if hasattr(novel_id, "value") else novel_id
-
-        knowledge = self.db.fetch_one("SELECT * FROM knowledge WHERE novel_id = ?", (novel_id_str,))
-        if not knowledge:
-            return None
-
+    def _build_facts_from_triple_rows(
+        self, novel_id_str: str, triples_rows: List[Any]
+    ) -> List[KnowledgeTriple]:
+        if not triples_rows:
+            return []
         more, tags, attrs = self._load_triple_children(novel_id_str)
         prov_by_triple = self._load_provenance_grouped(novel_id_str)
-
-        triples_sql = """
-            SELECT id, subject, predicate, object, chapter_number, note,
-                   entity_type, importance, location_type, description, first_appearance,
-                   confidence, source_type, subject_entity_id, object_entity_id
-            FROM triples
-            WHERE novel_id = ?
-            ORDER BY created_at ASC
-        """
-        triples_rows = self.db.fetch_all(triples_sql, (novel_id_str,))
-
         facts: List[KnowledgeTriple] = []
         for row in triples_rows:
             tid = row["id"]
@@ -253,6 +240,34 @@ class SqliteKnowledgeRepository:
                     object_entity_id=row.get("object_entity_id"),
                     provenance=list(prov_by_triple.get(tid, [])),
                 )
+            )
+        return facts
+
+    def get_by_novel_id(self, novel_id: NovelId) -> Optional[StoryKnowledge]:
+        novel_id_str = novel_id.value if hasattr(novel_id, "value") else novel_id
+
+        triples_sql = """
+            SELECT id, subject, predicate, object, chapter_number, note,
+                   entity_type, importance, location_type, description, first_appearance,
+                   confidence, source_type, subject_entity_id, object_entity_id
+            FROM triples
+            WHERE novel_id = ?
+            ORDER BY created_at ASC
+        """
+        triples_rows = self.db.fetch_all(triples_sql, (novel_id_str,))
+        facts = self._build_facts_from_triple_rows(novel_id_str, triples_rows)
+
+        knowledge = self.db.fetch_one("SELECT * FROM knowledge WHERE novel_id = ?", (novel_id_str,))
+        if not knowledge:
+            # 尚无 knowledge 行但已有 triples（如仅 Bible 地点同步写入）时仍返回事实，供 GET/可视化编辑
+            if not facts:
+                return None
+            return StoryKnowledge(
+                novel_id=novel_id_str,
+                version=1,
+                premise_lock="",
+                chapters=[],
+                facts=facts,
             )
 
         summaries_sql = """

@@ -33,6 +33,9 @@ export interface KnowledgeTriple {
   related_chapters?: number[]
   tags?: string[]
   attributes?: Record<string, any>
+  source_type?: string
+  subject_entity_id?: string
+  object_entity_id?: string
   /** 服务端推断溯源；PUT 时忽略 */
   provenance?: Array<{
     id?: string
@@ -75,6 +78,10 @@ export const knowledgeApi = {
    * Update knowledge graph for a novel
    */
   updateKnowledge: (novelId: string, data: StoryKnowledge) =>
+    request.put(`/novels/${novelId}/knowledge`, data) as Promise<StoryKnowledge>,
+
+  /** 与 updateKnowledge 相同（兼容旧组件名） */
+  putKnowledge: (novelId: string, data: StoryKnowledge) =>
     request.put(`/novels/${novelId}/knowledge`, data) as Promise<StoryKnowledge>,
 
   /**

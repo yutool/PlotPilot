@@ -54,10 +54,20 @@
           <p class="kb-section-hint">
             事实型约束；主语/宾语可与人物图谱姓名对应，并标注出处章号。
             <strong>人物关系规范：</strong>人物节点用「主—是—主角/配角」，关系用「张三—师徒/父子/朋友—李四」。
+            <strong>地点：</strong>实体类型选「地点」；由圣经同步的「位于 / 地图地点」也会出现在列表中（可筛选「地点」查看）。
           </p>
 
+          <div class="kb-editor-filter">
+            <n-text depth="3" style="font-size: 12px">列表筛选（保存仍提交全部 {{ factStats.total }} 条）：</n-text>
+            <n-radio-group v-model:value="editorFilter" size="small">
+              <n-radio-button value="all">全部</n-radio-button>
+              <n-radio-button value="character">人物 ({{ factStats.character }})</n-radio-button>
+              <n-radio-button value="location">地点 ({{ factStats.location }})</n-radio-button>
+            </n-radio-group>
+          </div>
+
           <div class="kb-facts">
-            <div v-for="(f, fi) in facts" :key="f.id" class="kb-fact">
+            <div v-for="{ f, i: fi } in filteredEditorRows" :key="f.id" class="kb-fact">
               <div class="kb-fact-id">{{ f.id }}</div>
               <div class="kb-fact-grid">
                 <n-input v-model:value="f.subject" placeholder="主语" size="small" />
@@ -114,7 +124,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { useMessage } from 'naive-ui'
-import { knowledgeApi } from '../api/knowledge'
+import { knowledgeApi, type ChapterSummary } from '../api/knowledge'
 import GraphChart from './charts/GraphChart.vue'
 import { convertGraph, type VisNode, type VisEdge, type EChartsGraphData } from '../utils/visToEcharts'
 
@@ -168,9 +178,32 @@ const viewMode = ref<'graph' | 'json' | 'editor'>('graph')
 const loading = ref(false)
 const saving = ref(false)
 const facts = ref<Fact[]>([])
+const storyVersion = ref(1)
+const premiseLock = ref('')
+const chaptersSnapshot = ref<ChapterSummary[]>([])
+const editorFilter = ref<'all' | 'character' | 'location'>('all')
 const jsonText = ref('')
 const jsonError = ref('')
 const graphData = ref<EChartsGraphData>({ nodes: [], links: [] })
+
+const factStats = computed(() => {
+  let character = 0
+  let location = 0
+  for (const f of facts.value) {
+    if (f.entity_type === 'character') character += 1
+    else if (f.entity_type === 'location') location += 1
+  }
+  return { character, location, total: facts.value.length }
+})
+
+const filteredEditorRows = computed(() =>
+  facts.value
+    .map((f, i) => ({ f, i }))
+    .filter(({ f }) => {
+      if (editorFilter.value === 'all') return true
+      return f.entity_type === editorFilter.value
+    }),
+)
 
 const emptyHint = computed(() => facts.value.length === 0 && !loading.value)
 
@@ -241,6 +274,9 @@ const reload = async () => {
   loading.value = true
   try {
     const data = await knowledgeApi.getKnowledge(props.slug)
+    storyVersion.value = data.version ?? 1
+    premiseLock.value = data.premise_lock ?? ''
+    chaptersSnapshot.value = Array.isArray(data.chapters) ? [...data.chapters] : []
     facts.value = data.facts || []
     jsonText.value = JSON.stringify(data.facts || [], null, 2)
     jsonError.value = ''
@@ -275,9 +311,9 @@ const save = async () => {
   saving.value = true
   try {
     await knowledgeApi.putKnowledge(props.slug, {
-      version: 1,
-      premise_lock: '',
-      chapters: [],
+      version: storyVersion.value,
+      premise_lock: premiseLock.value,
+      chapters: chaptersSnapshot.value,
       facts: facts.value,
     })
     message.success('已保存')
@@ -402,6 +438,18 @@ onMounted(() => {
   color: #6b7280;
   margin: 0 0 16px 0;
   line-height: 1.6;
+}
+
+.kb-editor-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 14px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(99, 102, 241, 0.06);
+  border: 1px solid rgba(99, 102, 241, 0.12);
 }
 
 .kb-facts {
