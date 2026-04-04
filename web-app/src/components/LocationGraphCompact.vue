@@ -235,6 +235,10 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   position: relative;
+  background: #fafafa;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  overflow: hidden;
 }
 
 .lgc-toolbar {
@@ -259,9 +263,11 @@ onMounted(async () => {
   justify-content: center;
 }
 
+/* 与 CastGraphCompact 一致：侧栏 flex 内 height:100% 需可解析的块高，否则 ECharts 高度为 0 不可见 */
 .lgc-canvas {
   flex: 1;
-  min-height: 0;
+  min-height: 220px;
+  width: 100%;
   position: relative;
 }
 </style>
