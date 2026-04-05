@@ -160,6 +160,12 @@ def get_timeline_repository() -> SqliteTimelineRepository:
     return SqliteTimelineRepository(get_database())
 
 
+def get_beat_sheet_repository():
+    """获取节拍表仓储"""
+    from infrastructure.persistence.database.sqlite_beat_sheet_repository import SqliteBeatSheetRepository
+    return SqliteBeatSheetRepository(get_database())
+
+
 def get_story_node_repository() -> StoryNodeRepository:
     """获取 StoryNode 仓储
 
@@ -483,6 +489,33 @@ def get_state_updater() -> StateUpdater:
         timeline_repository=get_timeline_repository(),
         storyline_repository=get_storyline_repository(),
         knowledge_service=get_knowledge_service()
+    )
+
+
+def get_beat_sheet_service():
+    """获取节拍表生成服务
+
+    Returns:
+        BeatSheetService 实例
+    """
+    from application.services.beat_sheet_service import BeatSheetService
+
+    settings = _anthropic_settings(require_key=False)
+    if settings:
+        llm_service = AnthropicProvider(settings)
+        logger.info("Using AnthropicProvider for beat sheet generation")
+    else:
+        from infrastructure.ai.providers.mock_provider import MockProvider
+        llm_service = MockProvider()
+        logger.warning("No API key found, using MockProvider for beat sheet generation")
+
+    return BeatSheetService(
+        beat_sheet_repo=get_beat_sheet_repository(),
+        chapter_repo=get_chapter_repository(),
+        storyline_repo=get_storyline_repository(),
+        llm_service=llm_service,
+        vector_store=get_vector_store(),
+        bible_service=get_bible_service()
     )
 
 
