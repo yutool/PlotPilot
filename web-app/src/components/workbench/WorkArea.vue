@@ -51,9 +51,14 @@
               <n-button size="small" secondary @click="handleGenerateChapter" :loading="generating">
                 AI 生成本章
               </n-button>
-              <n-button size="small" @click="handleReviewChapter" :loading="reviewing" :disabled="currentChapter.word_count === 0">
-                AI 审稿
-              </n-button>
+              <n-tooltip trigger="hover" :disabled="wordCount > 0">
+                <template #trigger>
+                  <n-button size="small" @click="handleReviewChapter" :loading="reviewing" :disabled="wordCount === 0">
+                    AI 审稿
+                  </n-button>
+                </template>
+                <span>请先在编辑区写入内容或保存后再审稿</span>
+              </n-tooltip>
               <n-button size="small" secondary @click="openTensionModal" title="卡关时分析张力缺口，获得突破建议">
                 ⚡ 卡关突破
               </n-button>
@@ -285,8 +290,9 @@
                   </n-tag>
                 </n-space>
                 <n-progress
+                  v-if="contextPreview.token_usage.limit > 0"
                   type="line"
-                  :percentage="Math.round(contextPreview.token_usage.total / contextPreview.token_usage.limit * 100)"
+                  :percentage="Math.min(100, Math.round(contextPreview.token_usage.total / contextPreview.token_usage.limit * 100))"
                   :height="6"
                   :border-radius="4"
                   :show-indicator="false"
@@ -547,7 +553,6 @@ const emit = defineEmits<{
 
 const message = useMessage()
 
-const rightPanel = ref('bible')
 const showHostedModal = ref(false)
 const showWorkflowModal = ref(false)
 const showGenerateModal = ref(false)
@@ -740,9 +745,15 @@ async function _checkActCompletionAfterSave(chapterNumber: number) {
 }
 
 const handleReload = async () => {
-  if (!props.currentChapterId) return
-  // Trigger reload from parent composable
-  message.info('已重新加载')
+  if (!currentChapter.value) return
+  try {
+    const fresh = await chapterApi.getChapter(props.slug, currentChapter.value.number)
+    chapterContent.value = fresh.content ?? ''
+    originalContent.value = fresh.content ?? ''
+    message.success('已重新加载')
+  } catch {
+    message.error('加载失败，请稍后重试')
+  }
 }
 
 const handleGenerateChapter = async () => {
@@ -878,11 +889,6 @@ const hostedAutoSave = ref(true)
 const hostedAutoOutline = ref(true)
 const hostedRunning = ref(false)
 const hostedLog = ref('')
-
-const setRightPanel = (panel: string) => {
-  rightPanel.value = panel
-  emit('setRightPanel', panel)
-}
 
 const handleStartHosted = async () => {
   hostedRunning.value = true

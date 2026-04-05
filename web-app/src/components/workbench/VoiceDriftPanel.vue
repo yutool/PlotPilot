@@ -1,9 +1,12 @@
 <template>
+  <n-spin :show="loading" description="加载中…">
   <div class="drift-panel">
     <div class="panel-header">
       <span class="panel-title">文风漂移监控</span>
       <n-button size="small" :loading="loading" @click="load">刷新</n-button>
     </div>
+
+    <n-alert v-if="loadError" type="error" :title="loadError" class="drift-alert" closable @close="loadError = ''" />
 
     <!-- 告警横幅 -->
     <n-alert
@@ -17,12 +20,18 @@
       建议回顾作者指纹或调整写作风格。
     </n-alert>
 
-    <n-alert v-else-if="report && report.scores.length >= report.alert_consecutive" type="success" title="文风正常" class="drift-alert">
-      近期文风与作者指纹匹配良好。
+    <n-alert
+      v-else-if="report && report.scores.length >= report.alert_consecutive"
+      type="success"
+      title="文风正常"
+      class="drift-alert"
+    >
+      已连续 {{ report.alert_consecutive }} 章监测，近期文风与作者指纹匹配良好。
     </n-alert>
 
-    <n-alert v-else-if="report && report.scores.length < 10" type="info" class="drift-alert">
-      样本不足（需至少 10 个文风样本才能计算相似度）。请先在「采血」功能添加样本。
+    <n-alert v-else-if="report" type="info" class="drift-alert">
+      指纹样本不足（需至少 10 个文风样本才能计算相似度）。
+      请先在「采血」功能（文风 → 采样）添加样本。
     </n-alert>
 
     <!-- 评分趋势表格 -->
@@ -30,13 +39,14 @@
       v-if="report && report.scores.length"
       :columns="columns"
       :data="report.scores.slice().reverse()"
-      :max-height="320"
+      :max-height="300"
       size="small"
       striped
       class="score-table"
     />
 
-    <n-empty v-else-if="!loading && report" description="暂无评分数据" size="small" />
+    <n-empty v-else-if="!loading && report && !report.scores.length" description="暂无评分数据" size="small" />
+
     <!-- 手动评分章节 -->
     <n-collapse class="manual-score-collapse">
       <n-collapse-item title="手动补算历史章节评分" name="manual">
@@ -68,19 +78,21 @@
       </n-collapse-item>
     </n-collapse>
 
-    <n-spin v-if="loading" size="small" class="spin" />
   </div>
+  </n-spin>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, h } from 'vue'
-import { NTag, NProgress } from 'naive-ui'
+import { NTag, NProgress, useMessage } from 'naive-ui'
 import { voiceDriftApi, type DriftReportResponse, type ScoreChapterResponse } from '@/api/voiceDrift'
 import { chapterApi } from '@/api/chapter'
 
 const props = defineProps<{ slug: string }>()
+const message = useMessage()
 
 const loading = ref(false)
+const loadError = ref('')
 const report = ref<DriftReportResponse | null>(null)
 
 // 手动评分
@@ -96,7 +108,7 @@ async function manualScore() {
   try {
     const chapter = await chapterApi.getChapter(props.slug, n)
     if (!chapter?.content) {
-      manualResult.value = { chapter_number: n, similarity_score: null, drift_alert: false }
+      message.warning(`第${n}章暂无正文内容，无法评分`)
       return
     }
     const r = await voiceDriftApi.scoreChapter(props.slug, {
@@ -104,10 +116,10 @@ async function manualScore() {
       content: chapter.content,
     })
     manualResult.value = r
-    // 刷新报告
     await load()
+    message.success(`第${n}章评分完成`)
   } catch {
-    manualResult.value = null
+    message.error('评分失败，请稍后重试')
   } finally {
     manualScoring.value = false
   }
@@ -116,9 +128,11 @@ async function manualScore() {
 async function load() {
   if (!props.slug) return
   loading.value = true
+  loadError.value = ''
   try {
     report.value = await voiceDriftApi.getDriftReport(props.slug)
-  } catch (e) {
+  } catch {
+    loadError.value = '加载漂移报告失败，请检查网络或稍后重试'
     report.value = null
   } finally {
     loading.value = false
@@ -200,10 +214,6 @@ onMounted(load)
 .score-table {
   border-radius: 6px;
   overflow: hidden;
-}
-.spin {
-  align-self: center;
-  margin-top: 20px;
 }
 .manual-score-collapse {
   border-top: 1px solid var(--n-border-color, #e0e0e6);

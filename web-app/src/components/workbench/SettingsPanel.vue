@@ -1,6 +1,6 @@
 <template>
   <div class="right-panel">
-    <n-tabs v-model:value="activeTab" type="line" size="medium" animated class="settings-tabs">
+    <n-tabs v-model:value="activeTab" type="line" size="small" animated class="settings-tabs" tab-style="min-width:60px" :tabs-padding="8">
       <n-tab-pane name="worldbuilding" tab="世界观">
         <WorldbuildingPanel :slug="slug" />
       </n-tab-pane>
@@ -102,8 +102,8 @@ interface Chapter {
 
 interface Props {
   slug: string
-  /** 与 Workbench 的 `current-panel` 对应 */
-  currentPanel?: 'bible' | 'knowledge'
+  /** 当前激活的右侧面板 tab 名称 */
+  currentPanel?: string
   bibleKey?: number
   currentChapter?: Chapter | null
 }
@@ -140,9 +140,14 @@ watch(() => props.currentPanel, (newVal) => {
 }
 
 .settings-tabs :deep(.n-tabs-nav) {
-  padding: 0 16px;
+  padding: 0 8px;
   background: var(--app-surface);
   border-bottom: 1px solid var(--aitext-split-border);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.settings-tabs :deep(.n-tabs-nav::-webkit-scrollbar) {
+  display: none;
 }
 
 .settings-tabs :deep(.n-tabs-content) {

@@ -191,6 +191,47 @@ import { chapterApi } from '../../api/chapter'
 import { planningApi } from '../../api/planning'
 import ConsistencyReportPanel from './ConsistencyReportPanel.vue'
 
+const PHASE_LABEL: Record<string, string> = {
+  session: '会话初始化',
+  chapter_start: '开始新章节',
+  outline: '生成大纲',
+  planning: '故事线规划',
+  context: '构建上下文',
+  llm: '模型正在生成',
+  post: '一致性检查',
+  done: '章节完成',
+  saved: '保存章节',
+  session_done: '所有章节完成',
+  error: '发生错误',
+}
+
+function formatHostedEvent(o: Record<string, unknown>): string {
+  const t = String(o.type ?? '')
+  const label = PHASE_LABEL[t] ?? t
+  const ts = new Date().toLocaleTimeString('zh-CN', { hour12: false })
+
+  switch (t) {
+    case 'chapter_start':
+      return `\n[${ts}] ▶ 第 ${o.chapter} 章 (${o.index}/${o.total})`
+    case 'outline':
+      return `  大纲: ${String(o.text ?? '').slice(0, 120)}`
+    case 'phase':
+      return `  → ${PHASE_LABEL[String(o.phase ?? '')] ?? o.phase}`
+    case 'done':
+      return `  ✓ 生成完成 ${typeof o.content === 'string' ? o.content.length : 0} 字`
+    case 'saved':
+      return o.ok
+        ? `  💾 已保存${o.created ? '（新建）' : ''}`
+        : `  ✗ 保存失败: ${o.message}`
+    case 'session_done':
+      return `\n[${ts}] ✅ 全部 ${o.total} 章生成完毕`
+    case 'error':
+      return `\n[${ts}] ❌ ${o.message}`
+    default:
+      return `  [${label}]`
+  }
+}
+
 export interface ChapterOption {
   id: number
   title: string
@@ -316,6 +357,20 @@ watch(
 )
 
 function close() {
+  if (generating.value || hostedRunning.value) {
+    dialog.warning({
+      title: '确认关闭',
+      content: '当前仍有生成任务进行中，关闭后将中断。确定关闭？',
+      positiveText: '关闭并中断',
+      negativeText: '继续等待',
+      onPositiveClick: () => {
+        streamAbort?.abort()
+        hostedAbort?.abort()
+        emit('update:show', false)
+      },
+    })
+    return
+  }
   streamAbort?.abort()
   hostedAbort?.abort()
   emit('update:show', false)
@@ -355,7 +410,7 @@ function stopHosted() {
 }
 
 function appendHostedLog(line: string) {
-  const next = (hostedLog.value + line + '\n').slice(-12000)
+  const next = (hostedLog.value + line + '\n').slice(-8000)
   hostedLog.value = next
 }
 
@@ -387,7 +442,7 @@ async function runHosted() {
     {
       signal: hostedAbort.signal,
       onEvent: o => {
-        appendHostedLog(JSON.stringify(o))
+        appendHostedLog(formatHostedEvent(o as Record<string, unknown>))
         const t = o.type as string
         if (t === 'chapter_start') {
           currentChapter = Number(o.chapter ?? 0)

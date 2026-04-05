@@ -22,7 +22,7 @@
     <n-scrollbar class="sidebar-scroll">
       <!-- 平铺视图：仅显示章节列表 -->
       <div v-if="viewMode === 'flat'">
-        <div v-if="!chapters.length" class="sidebar-empty">暂无章节大纲，可先执行「结构规划」</div>
+        <div v-if="!chapters.length" class="sidebar-empty">暂无章节，请先在底部执行「宏观结构规划」创建章节大纲</div>
         <n-list v-else hoverable clickable>
           <n-list-item
             v-for="ch in chapters"
@@ -78,8 +78,6 @@
 
 <script setup lang="ts">
 import { ref, type ComponentPublicInstance } from 'vue'
-import { useMessage, useDialog } from 'naive-ui'
-import { workflowApi } from '@/api/workflow'
 import StoryStructureTree from '@/components/StoryStructureTree.vue'
 import MacroPlanModal from '@/components/workbench/MacroPlanModal.vue'
 
@@ -108,17 +106,12 @@ const emit = defineEmits<{
   planAct: [actId: string, actTitle: string]
 }>()
 
-const message = useMessage()
-const dialog = useDialog()
-
 const viewMode = ref('tree')
 const viewModeOptions = [
-  { label: '🌳 树形视图', value: 'tree' },
-  { label: '📄 平铺视图', value: 'flat' }
+  { label: '树形视图', value: 'tree' },
+  { label: '平铺视图', value: 'flat' }
 ]
 
-const planning = ref(false)
-const extending = ref(false)
 const showMacroPlan = ref(false)
 
 const storyTreeRef = ref<ComponentPublicInstance<{ loadTree: () => Promise<void> }> | null>(null)
@@ -138,63 +131,6 @@ const handleBack = () => {
   emit('back')
 }
 
-// AI 初始规划
-// Naive Dialog：onPositiveClick 若返回 rejected Promise 则不会关闭弹层（仅有 .then 无 .catch）。
-// 故先 return true 关弹层，再在后台跑长任务；loading 仍由 planning 绑在按钮上。
-const handlePlanNovel = () => {
-  dialog.warning({
-    title: 'AI 初始规划',
-    content: '将使用 AI 生成初始 Bible（世界设定）和章节大纲。此操作可能需要 1-2 分钟，确认继续？',
-    positiveText: '确认',
-    negativeText: '取消',
-    onPositiveClick: () => {
-      planning.value = true
-      void (async () => {
-        try {
-          const res = await workflowApi.planNovel(props.slug, 'initial', false)
-          message.success(res.message || 'AI 规划完成')
-          emit('refresh')
-        } catch (e: unknown) {
-          const err = e as { response?: { data?: { detail?: string } } }
-          message.error(err?.response?.data?.detail || 'AI 规划失败，请确认 API Key 已配置')
-        } finally {
-          planning.value = false
-        }
-      })()
-      return true
-    }
-  })
-}
-
-// 续写大纲
-const handleExtendOutline = () => {
-  const lastChapter = props.chapters[props.chapters.length - 1]
-  const fromChapter = lastChapter ? lastChapter.number + 1 : 1
-  const extendCount = ref(5)
-
-  dialog.warning({
-    title: '续写大纲',
-    content: `将从第 ${fromChapter} 章开始续写大纲，默认生成 5 章（可在后续版本中自定义数量）`,
-    positiveText: '开始续写',
-    negativeText: '取消',
-    onPositiveClick: () => {
-      extending.value = true
-      void (async () => {
-        try {
-          const res = await workflowApi.extendOutline(props.slug, fromChapter, extendCount.value)
-          message.success(`成功生成 ${res.chapters_added} 章大纲`)
-          emit('refresh')
-        } catch (e: unknown) {
-          const err = e as { response?: { data?: { detail?: string } } }
-          message.error(err?.response?.data?.detail || '续写大纲失败，请确认 API Key 已配置')
-        } finally {
-          extending.value = false
-        }
-      })()
-      return true
-    }
-  })
-}
 </script>
 
 <style scoped>
