@@ -64,12 +64,15 @@ def build_daemon() -> AutopilotDaemon:
     )
 
     # VoiceDriftService（可选，失败则跳过）
+    # score_repo 须为 chapter_style_scores 表（upsert），与 interfaces.api.dependencies.get_voice_drift_service 一致
     voice_drift_service = None
     try:
-        from infrastructure.persistence.database.sqlite_voice_vault_repository import SqliteVoiceVaultRepository
+        from infrastructure.persistence.database.sqlite_chapter_style_score_repository import (
+            SqliteChapterStyleScoreRepository,
+        )
         from infrastructure.persistence.database.sqlite_voice_fingerprint_repository import SQLiteVoiceFingerprintRepository
         from application.analyst.services.voice_drift_service import VoiceDriftService
-        score_repo = SqliteVoiceVaultRepository(db)
+        score_repo = SqliteChapterStyleScoreRepository(db)
         fingerprint_repo = SQLiteVoiceFingerprintRepository(db)
         voice_drift_service = VoiceDriftService(score_repo, fingerprint_repo)
         logger.info("VoiceDriftService 已启用")
