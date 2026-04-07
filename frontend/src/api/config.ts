@@ -63,8 +63,11 @@ export function subscribeChapterStream(
 ): AbortController {
   const ctrl = new AbortController()
 
+  console.log('[SSE] Starting chapter stream for novel:', novelId)
+  
   ;(async () => {
     try {
+      console.log('[SSE] Fetching chapter-stream endpoint...')
       const res = await fetch(`/api/v1/autopilot/${novelId}/chapter-stream`, {
         signal: ctrl.signal,
         headers: {
@@ -74,21 +77,28 @@ export function subscribeChapterStream(
       })
 
       if (!res.ok || !res.body) {
+        console.error('[SSE] Failed to connect:', res.status, res.statusText)
         handlers.onError?.(new Error(`HTTP ${res.status}`))
         handlers.onDisconnected?.()
         return
       }
       
       // 通知连接成功
+      console.log('[SSE] Connected to chapter stream')
       handlers.onConnected?.()
 
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
       let buffer = ''
 
+      console.log('[SSE] Starting to read stream...')
+      
       while (true) {
         const { done, value } = await reader.read()
-        if (done) break
+        if (done) {
+          console.log('[SSE] Stream ended')
+          break
+        }
 
         buffer += decoder.decode(value, { stream: true })
         let sep: number
@@ -100,6 +110,7 @@ export function subscribeChapterStream(
             if (!line.startsWith('data: ')) continue
             try {
               const event = JSON.parse(line.slice(6)) as ChapterStreamEvent
+              console.log('[SSE] Received event:', event.type, event.metadata)
 
               if (event.type === 'chapter_start' && event.metadata?.chapter_number) {
                 handlers.onChapterStart?.(event.metadata.chapter_number)
@@ -117,14 +128,18 @@ export function subscribeChapterStream(
               } else if (event.type === 'autopilot_stopped') {
                 handlers.onAutopilotStopped?.(event.message)
               }
-            } catch {
-              // 忽略解析错误
+            } catch (parseError) {
+              console.warn('[SSE] Failed to parse event:', line, parseError)
             }
           }
         }
       }
     } catch (e) {
-      if (e instanceof Error && e.name === 'AbortError') return
+      if (e instanceof Error && e.name === 'AbortError') {
+        console.log('[SSE] Stream aborted')
+        return
+      }
+      console.error('[SSE] Stream error:', e)
       handlers.onError?.(e instanceof Error ? e : new Error('Stream error'))
       handlers.onDisconnected?.()
     }

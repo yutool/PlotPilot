@@ -543,7 +543,8 @@ async def autopilot_chapter_stream(novel_id: str):
                     )
                     if drafts:
                         chapter_number = drafts[0].number
-                        if last_chapter_number is not None and chapter_number != last_chapter_number:
+                        # 发送章节开始事件（首次或章节改变时）
+                        if last_chapter_number is None or chapter_number != last_chapter_number:
                             event = {
                                 "type": "chapter_start",
                                 "message": f"开始写第 {chapter_number} 章",
@@ -551,6 +552,7 @@ async def autopilot_chapter_stream(novel_id: str):
                                 "metadata": {"chapter_number": chapter_number},
                             }
                             yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+                            logger.debug(f"[SSE] 发送 chapter_start: 第 {chapter_number} 章, novel={novel_id}")
                             streaming_bus.clear(novel_id)  # 清空旧内容
                         last_chapter_number = chapter_number
 
